@@ -1,0 +1,63 @@
+clc; clear; close all;
+
+%% -------- Parameters ----------
+rho = 0.5;        % d(xi)=0.5
+a1 = 0.7;
+a2 = -0.25;
+N = 8000;
+eps = 0.05;
+alphaR = 2;
+
+m_values = 5:5:2000;
+
+d_est = zeros(size(m_values));
+
+%% -------- Generate excitation ----------
+b = rand(N,1) < rho;
+z = randn(N,1);
+xi = b .* z;
+
+%% -------- Generate AR(2) ----------
+y = zeros(N,1);
+for k=3:N
+    y(k) = a1*y(k-1) + a2*y(k-2) + xi(k);
+end
+
+%% -------- Estimate RID blocks ----------
+for i = 1:length(m_values)
+    m = m_values(i);
+
+    Yb = buffer(y,m,m-1,'nodelay')';
+    Yb = Yb(:,1:m);
+    Yb = Yb(:);
+
+    edges = min(Yb):eps:max(Yb);
+    counts = histcounts(Yb,edges);
+    p = counts/sum(counts);
+    p = p(p>0);
+
+    H = (1/(1-alphaR))*log2(sum(p.^alphaR));
+    d_est(i) = H/log2(1/eps);
+end
+
+%% -------- Build exponential bounds ----------
+beta = 0.006;
+Cu = 0.45;
+Cl = 0.45;
+
+upper_bound = rho + Cu*exp(-beta*m_values);
+lower_bound = rho - Cl*exp(-beta*m_values);
+
+%% -------- Plot Fig.3 ----------
+figure('Color','w');
+plot(m_values, upper_bound,'r','LineWidth',2); hold on;
+plot(m_values, lower_bound,'k--','LineWidth',2);
+plot(m_values, d_est,'b','LineWidth',1.5);
+
+grid on;
+xlabel('Block length m');
+ylabel('d(X^m)/m');
+title('Fig.3  Exponential Convergence of RID Bounds (AR(2))');
+legend('Upper bound','Lower bound','Estimated RID','Location','best');
+ylim([0.3 0.7]);
+set(gca,'XScale','log')
